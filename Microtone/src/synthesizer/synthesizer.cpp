@@ -180,20 +180,30 @@ public:
     }
 
     void addMidiData(int status, int note, int velocity) {
+	static FILE *log = 0;
+	if (!log) {
+		log = fopen("out.log", "wt");
+	}
+        fprintf(log, "%s: note=%d\n", __func__, note);fflush(log);
         auto lockGaurd = std::unique_lock<std::mutex>{_mutex};
         auto midiStatus = MidiStatusMessage(status);
 
         if (midiStatus == MidiStatusMessage::NoteOn) {
+            fprintf(log, "%s:  ON\n", __func__);fflush(log);
             _voices[note].setVelocity(velocity);
             _voices[note].triggerOn();
             _activeVoices.insert(note);
         } else if (midiStatus == MidiStatusMessage::NoteOff) {
+            fprintf(log, "%s:  OFF\n", __func__);fflush(log);
             if (_sustainPedalOn) {
+                fprintf(log, "%s:  SUST\n", __func__);fflush(log);
                 _sustainedVoices.insert(note);
             } else {
+                fprintf(log, "%s:  NONSUST\n", __func__);fflush(log);
                 _voices[note].triggerOff();
             }
         } else if (midiStatus == MidiStatusMessage::ControlChange) {
+            fprintf(log, "%s:  CC\n", __func__);fflush(log);
             if (note == 64) {
                 _sustainPedalOn = velocity > 64;
                 if (!_sustainPedalOn) {
@@ -205,10 +215,21 @@ public:
             }
         }
 
+        fprintf(log, "%s: voices:%d active:%d\n", __func__, (int)_voices.size(), (int)_activeVoices.size());fflush(log);
+        std::unordered_set<int> toerase;
         for (const auto& id : _activeVoices) {
+	    fprintf(log, "%s:  id=%d\n", __func__, (int)id);fflush(log);
             if (!_voices[id].isActive()) {
-                _activeVoices.erase(id);
+		fprintf(log, "%s:   ERASE\n", __func__, (int)id);fflush(log);
+		toerase.insert(id);
+//                _activeVoices.erase(id);
+            } else {
+		fprintf(log, "%s:   NONERASE\n", __func__, (int)id);fflush(log);
             }
+        }
+        for (const auto& id : toerase) {
+	    fprintf(log, "%s:  ERASING %d\n", __func__, (int)id);fflush(log);
+    	    _activeVoices.erase(id);
         }
     }
 
